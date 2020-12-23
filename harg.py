@@ -1,8 +1,8 @@
-#!/usr/bin/python
+#!/usr/bin/python2.7
 # -*- coding: utf-8 -*-
 
-# auteur : Jahislove
-# version 1.2
+# auteur : Jahislove, modification H Stehle
+# version 1.3
 # python version 2.7
 
 # ce script tourne sur un Rasberry pi
@@ -15,17 +15,19 @@
 # optionnel : SQlite3 doit etre installé sur la machine pour activer le mode backup qui copie en local en cas d'indispo de MySQL
 
 # this script is running on raspberry pi
-# it listen an Hargassner NanoPK Boiler on telnet
+# it listen an Hargassner NanoPK heating on telnet
 # and then it write data in MySQL or MariaDB on a NAS Synology
-# work with data, classic and HSV boiler equiped with touchtronic + internet gateway
+# work with data, classic and HSV heating equiped with touchtronic + internet gateway
 # may work without gateway (to be tested)
 # to create the database, use the query in createBDD.sql
 
 # Import socket module
 import socket               
 import time
-from datetime import date,datetime,timedelta
-import MySQLdb   # MySQLdb must be installed by yourself
+from datetime import date,timedelta
+# from datetime import date,datetime,timedelta
+# import MySQLdb   # MySQLdb must be installed by yourself
+import mysql.connector
 import sys
 import os.path
 import logging
@@ -34,15 +36,15 @@ from threading import Thread
 #----------------------------------------------------------#
 #        parametres                                        #
 #----------------------------------------------------------#
-DB_SERVER = '192.168.0.111'   # MySQL : IP server (localhost si mySQL est sur la meme machine)
-DB_BASE = 'Hargassner'        # MySQL : database name
-DB_USER = 'hargassner'        # MySQL : user  
-DB_PWD = 'password'           # MySQL : password 
-IP_CHAUDIERE = '192.168.0.198'
-FIRMWARE_CHAUD = '14g'        # firmware de la chaudiere
-PATH_HARG = "/home/pi/hargassner/" #chemin ou se trouve ce script
+DB_SERVER = '192.168.178.10'       # MySQL : IP server (localhost si mySQL est sur la meme machine)
+DB_BASE = 'Hargassner'             # MySQL : database name
+DB_USER = 'dbuser'                 # MySQL : user
+DB_PWD = 'dbuser'                  # MySQL : password
+IP_CHAUDIERE = '192.168.178.110'
+FIRMWARE_CHAUD = '14j'             # firmware de la chaudiere
+PATH_HARG = "/home/pi/hargassner/" # chemin ou se trouve ce script
 
-MODE_BACKUP = True          # True si SQlite3 est installé , sinon False  
+MODE_BACKUP = False         # True si SQlite3 est installé , sinon False
 INSERT_GROUPED = 1          # regroupe n reception avant d'ecrire en base :INSERT_GROUPED x FREQUENCY = temps en sec
 FREQUENCY = 60              # Periodicité (reduit le volume de data mais reduit la précision)
                             # (1 = toutes)     1 mesure chaque seconde
@@ -56,23 +58,12 @@ PORT = 23
 backup_row = 0
 backup_mode = 0
 
-if FIRMWARE_CHAUD == '14d':
-    nbre_param = 174
-elif FIRMWARE_CHAUD == '14e':
-    nbre_param = 174
-elif FIRMWARE_CHAUD == '14f':
-    nbre_param = 174
-elif FIRMWARE_CHAUD == '14g':
-    nbre_param = 190
-else:
-    nbre_param = 174
-   
 #----------------------------------------------------------#
 #        definition des logs                               #
 #----------------------------------------------------------#
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger('log')
-logger.setLevel(logging.INFO) # choisir le niveau de log : DEBUG, INFO, ERROR...
+logger.setLevel(logging.INFO)                      # choisir le niveau de log : DEBUG, INFO, ERROR...
 
 handler_debug = logging.FileHandler(PATH_HARG + "trace.log", mode="a", encoding="utf-8")
 handler_debug.setFormatter(formatter)
@@ -80,16 +71,38 @@ handler_debug.setLevel(logging.DEBUG)
 logger.addHandler(handler_debug)
 
 #----------------------------------------------------------#
+#        number or parameter depending on firmware         #
+#----------------------------------------------------------#
+if FIRMWARE_CHAUD == '14d':
+    nbre_param = 174
+    logger.info("Firmware v14d")
+elif FIRMWARE_CHAUD == '14e':
+    nbre_param = 174
+    logger.info("Firmware v14e")
+elif FIRMWARE_CHAUD == '14f':
+    nbre_param = 174
+    logger.info("Firmware v14f")
+elif FIRMWARE_CHAUD == '14g':
+    nbre_param = 190
+    logger.info("Firmware v14g")
+elif FIRMWARE_CHAUD == '14j':
+    nbre_param = 169
+    logger.info("Firmware v14j")
+else:
+    nbre_param = 174
+    logger.info("Firmware unknown")
+   
+#----------------------------------------------------------#
 #        socket for Connection to Hargassner               #
 #----------------------------------------------------------#
 while True:
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)         
         s.connect((IP_CHAUDIERE, PORT))
-        logger.info("Creation du socket telnet OK")
+        logger.info("Telnet socket connection to HARGSSNER heating OK.")
         break
     except:
-        logger.critical("Connexion a la chaudiere impossible")
+        logger.critical("Connection to HARGASSNER heating impossible.")
         time.sleep(5)
         
 #----------------------------------------------------------#
@@ -105,7 +118,7 @@ if MODE_BACKUP == True:
         global backup_mode
         global backup_row
         try:
-            db = MySQLdb.connect(DB_SERVER, DB_USER, DB_PWD, DB_BASE)
+            db = mysql.connector.connect(user=DB_USER, password=DB_PWD, host=DB_SERVER, database=DB_BASE)
             cursor = db.cursor()
             #---------------------------------------------------------------#
             #     Normal MySQL database INSERT                              #
@@ -114,7 +127,7 @@ if MODE_BACKUP == True:
                 cursor.execute(sql)
                 db.commit()
                 db.close()
-                logger.debug("Ecriture en bdd OK")
+                logger.debug("Writing to database OK.")
             #---------------------------------------------------------------#
             # RESTORE : when MySQL is available again : restore from SQlite #
             #---------------------------------------------------------------#
@@ -359,15 +372,15 @@ else:
     # -------------query without BACKUP------------------------#
     def query_db(sql):
         try:
-            db = MySQLdb.connect(DB_SERVER, DB_USER, DB_PWD, DB_BASE)
+            db = mysql.connector.connect(user=DB_USER, password=DB_PWD, host=DB_SERVER, database=DB_BASE)
             cursor = db.cursor()
             cursor.execute(sql)
             db.commit()
             db.close()
-            logger.debug("Ecriture en bdd OK")
+            logger.debug("Writing to database OK.")
             
-        except MySQLdb.Error:
-            logger.error("MySQL is down : %s", MySQLdb.Error)
+        except mysql.connector.Error:
+            logger.error("MySQL is down : %s", mysql.connector.Error)
     
 #----------------------------------------------------------#
 #             initialisation table consommation            #
@@ -375,7 +388,7 @@ else:
 #             si la table est vide on rempli une ligne a vide
 #----------------------------------------------------------#
 try:
-    db = MySQLdb.connect(DB_SERVER, DB_USER, DB_PWD, DB_BASE)
+    db = mysql.connector.connect(user=DB_USER, password=DB_PWD, host=DB_SERVER, database=DB_BASE)
     cursor = db.cursor()
 
     try:
@@ -384,13 +397,14 @@ try:
         if compt[0] == 0:
             dateH =  date.today() + timedelta(days=-1)
             cursor.execute("""INSERT INTO consommation (dateB, conso, Tmoy) VALUES ('%s','%s','%s')""" % (dateH,'0','0'))
+            logger.debug("Writing to table consommation")
     except:
-        logger.error('lecture/ecriture table consommation impossible')
+        logger.error('Reading/writing table consommation impossible.')
 
     db.commit()
     db.close()
 except:
-    logger.error('Erreur initialisation table consommation')
+    logger.error('Error initialisation table consommation.')
 
 #----------------------------------------------------------#
 #             declaration threads                          #
@@ -402,7 +416,7 @@ except:
 def thread_consommation():
     while True:
         try:
-            db = MySQLdb.connect(DB_SERVER, DB_USER, DB_PWD, DB_BASE)
+            db = mysql.connector.connect(user=DB_USER, password=DB_PWD, host=DB_SERVER, database=DB_BASE)
             cursor = db.cursor()
             
             cursor.execute("""SELECT dateB FROM consommation
@@ -411,7 +425,7 @@ def thread_consommation():
             last_conso = result[0] + timedelta(days=1)
            
             if date.today() > last_conso:
-                cursor.execute("""SELECT DATE(dateB),MAX(c99)-MIN(c99),FORMAT(AVG(c6), 1) FROM data
+                cursor.execute("""SELECT DATE(dateB),MAX(c48)-MIN(c48),FORMAT(AVG(c6), 1) FROM data
                                 GROUP BY DATE(dateB)
                                 ORDER by dateB DESC LIMIT 1,1 """)
                 result = cursor.fetchone ()
@@ -420,7 +434,7 @@ def thread_consommation():
             db.commit()
             db.close()
         except:
-            logger.error('Erreur dans le Thread consommation')
+            logger.error('Error in thread consommation.')
         time.sleep(7200)
 
 
@@ -479,12 +493,12 @@ while True:
                     for x in range(INSERT_GROUPED):
                         query_db( requete % tableau[x] ) 
                     
-                    logger.debug('write DB : %s', tableau[0][0])
+                    logger.debug('write database : %s', tableau[0][0])
                     i = 0
                     tableau = []
                 time.sleep(FREQUENCY - 1)
             except:
-                logger.error('insert KO')
+                logger.error('insert NOK')
         else:
             logger.debug(bufferOK)
 
