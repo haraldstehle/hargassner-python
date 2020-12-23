@@ -1,0 +1,7 @@
+Mit dem Skript harg.py kann via telnet die Heizungssteuerung abgehört und die Informationen in eine MySQL- oder MariaDB-Datenbank gespeichert werden.
+
+Die Datenbank enthält 2 Tabellen. Sie können die 2 SQL-Abfragen verwenden, um sie zu erstellen:
+(1) create_table_consommation.sql
+(2) create_table_data-14g.sql
+
+Die Datei harg.skeleton wird verwendet, um das Skript unter Raspbian Wheezy in einen Dienst umzuwandeln (funktioniert nicht unter Jessie).

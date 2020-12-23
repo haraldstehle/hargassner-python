@@ -1,0 +1,7 @@
+The harg.py script allows to listen to the telnet of the heating control and to save the information in a Mysql or MariaDB database
+
+The database contains 2 tables, you can use the 2 SQL queries to create them:
+(1) create_table_consommation.sql
+(2) create_table_data-14g.sql
+
+The harg.skeleton file is used to transform the script into a service under Raspbian Wheezy (does not work under Jessie)
