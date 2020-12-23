@@ -1,0 +1,4 @@
+to make hagr.py run as a service:
+
+(1) copy harg.service.app to /lib/systemd/system/
+(2) sudo systemctl daemon-reload
