@@ -7,6 +7,7 @@ Conflicts=getty@tty1.service
 Type=simple
 ExecStart=/usr/bin/python2.7 /home/pi/hargassner/harg.py
 StandardInput=tty-force
+Restart=always
 
 [Install]
 WantedBy=multi-user.target
